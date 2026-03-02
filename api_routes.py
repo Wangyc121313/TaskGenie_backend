@@ -31,30 +31,6 @@ async def get_all_tasks():
     """获取所有任务"""
     return TaskService.get_all_tasks()
 
-@task_router.get("/{task_id}", response_model=Task)
-async def get_task(task_id: str):
-    """获取单个任务"""
-    task = TaskService.get_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    return task
-
-@task_router.put("/{task_id}", response_model=Task)
-async def update_task(task_id: str, task_update: TaskUpdate):
-    """更新任务"""
-    task = TaskService.update_task(task_id, task_update)
-    if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    return task
-
-@task_router.delete("/{task_id}")
-async def delete_task(task_id: str):
-    """删除任务"""
-    success = TaskService.delete_task(task_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    return {"message": "任务已删除"}
-
 @task_router.get("/by-tags")
 async def get_tasks_by_tags(tags: str = ""):
     """根据多个标签筛选任务，支持AND逻辑"""
@@ -78,6 +54,30 @@ async def get_tasks_by_tag(tag: str):
 async def get_calendar_tasks(year: int, month: int):
     """获取指定月份的任务日历数据"""
     return TaskService.get_calendar_tasks(year, month)
+
+@task_router.get("/{task_id}", response_model=Task)
+async def get_task(task_id: str):
+    """获取单个任务"""
+    task = TaskService.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return task
+
+@task_router.put("/{task_id}", response_model=Task)
+async def update_task(task_id: str, task_update: TaskUpdate):
+    """更新任务"""
+    task = TaskService.update_task(task_id, task_update)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return task
+
+@task_router.delete("/{task_id}")
+async def delete_task(task_id: str):
+    """删除任务"""
+    success = TaskService.delete_task(task_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return {"message": "任务已删除"}
 
 # ===== AI相关路由 =====
 @ai_router.post("/plan-tasks/async")
@@ -212,7 +212,13 @@ async def get_day_schedule_preview(date: str):
 async def test_ai_planning(prompt: str = "学习React Native开发", max_tasks: int = 3):
     """测试AI任务规划功能"""
     job_id = str(uuid.uuid4())
-    
+    job = AIJob(
+        job_id=job_id,
+        status=AIJobStatus.PENDING,
+        created_at=datetime.now()
+    )
+    db.create_ai_job(job)
+
     try:
         await AIService.process_task_planning(job_id, prompt, max_tasks)
         

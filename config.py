@@ -4,6 +4,10 @@
 """
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# 加载 .env 文件（如果存在）
+load_dotenv()
 
 class Settings:
     """应用设置"""
@@ -19,7 +23,7 @@ class Settings:
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     
     # AI配置
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "sk-zmyrpclntmuvmufqjclmjczurrexkvzsfcrxthcwzgyffktd")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.siliconflow.cn/v1")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "Qwen/Qwen2.5-7B-Instruct")
     

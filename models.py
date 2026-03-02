@@ -2,7 +2,7 @@
 数据模型定义 - 简化标签系统
 """
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Union, Any
+from typing import List, Optional, Dict, Union, Any, Literal
 from datetime import datetime, date
 from enum import Enum
 
@@ -27,15 +27,16 @@ class Task(BaseModel):
     status: TaskStatus = TaskStatus.PENDING
     created_at: Optional[datetime] = None
     due_date: Optional[datetime] = None
-    priority: Optional[str] = "medium"  # low, medium, high
+    priority: Literal["low", "medium", "high"] = "medium"
     estimated_hours: Optional[float] = None
     scheduled_date: Optional[date] = None
 
 class TaskCreate(BaseModel):
     name: str
     description: Optional[str] = ""
+    completed: Optional[bool] = False
     due_date: Optional[datetime] = None
-    priority: Optional[str] = "medium"
+    priority: Literal["low", "medium", "high"] = "medium"
     estimated_hours: Optional[float] = None
     scheduled_date: Optional[date] = None
 
@@ -45,7 +46,7 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
     status: Optional[TaskStatus] = None
     due_date: Optional[datetime] = None
-    priority: Optional[str] = None
+    priority: Optional[Literal["low", "medium", "high"]] = None
     estimated_hours: Optional[float] = None
     scheduled_date: Optional[date] = None
 

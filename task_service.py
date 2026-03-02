@@ -13,10 +13,13 @@ class TaskService:
     @staticmethod
     def create_task(task_data: TaskCreate) -> Task:
         """创建新任务"""
+        completed = task_data.completed or False
         new_task = Task(
             id=str(uuid.uuid4()),
             name=task_data.name,
             description=task_data.description,
+            completed=completed,
+            status=TaskStatus.COMPLETED if completed else TaskStatus.PENDING,
             created_at=datetime.now(),
             due_date=task_data.due_date,
             priority=task_data.priority,
@@ -56,7 +59,7 @@ class TaskService:
             return None
 
         # 应用更新
-        update_data = task_update.dict(exclude_unset=True)
+        update_data = task_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(task, field, value)
 

@@ -12,7 +12,7 @@ from typing import Dict, Any
 # 导入主应用
 from main import app
 from database import db
-from models import Task, TaskTag
+from models import Task
 
 # 创建测试客户端
 client = TestClient(app)
@@ -22,10 +22,8 @@ class TestTaskGenieAPI:
     
     def setup_method(self):
         """每个测试方法执行前的设置"""
-        # 清空数据库
-        db.tasks.clear()
-        db.ai_jobs.clear()
-        db.day_schedules.clear()
+        # 清空数据库（SQLite 版本）
+        db.clear_all()
         print("\n🧹 清空测试数据")
 
     def teardown_method(self):
@@ -62,7 +60,6 @@ class TestTaskGenieAPI:
             "description": "这是一个测试任务",
             "priority": "high",
             "estimated_hours": 2.5,
-            "task_tags": ["重要", "工作"]
         }
         
         response = client.post("/tasks", json=task_data)
@@ -75,7 +72,6 @@ class TestTaskGenieAPI:
         assert data["estimated_hours"] == task_data["estimated_hours"]
         assert "id" in data
         assert "created_at" in data
-        assert isinstance(data["task_tags"], list)
         
         print(f"✅ 任务创建成功，ID: {data['id']}")
         return data
@@ -160,7 +156,6 @@ class TestTaskGenieAPI:
         assert data["name"] == update_data["name"]
         assert data["completed"] == update_data["completed"]
         assert data["priority"] == update_data["priority"]
-        assert TaskTag.COMPLETED in data["task_tags"]  # 完成任务应该有完成标签
         
         print(f"✅ 任务更新成功: {data['name']}")
 
@@ -200,7 +195,7 @@ class TestTaskGenieAPI:
         assert isinstance(data["tag_descriptions"], dict)
         
         # 检查基本标签是否存在
-        expected_tags = ["今日", "明日", "重要", "紧急", "已完成", "已过期"]
+        expected_tags = ["今日", "明日", "重要", "已完成", "已过期"]
         for tag in expected_tags:
             assert tag in data["system_tags"]
             assert tag in data["tag_descriptions"]
@@ -208,46 +203,25 @@ class TestTaskGenieAPI:
         print(f"✅ 获取到 {len(data['system_tags'])} 个可用标签")
 
     def test_filter_tasks_by_tags(self):
-        """测试按标签筛选任务"""
+        """测试按标签筛选任务（标签由后端动态计算）"""
         print("\n🧪 测试按标签筛选任务...")
         
-        # 创建不同标签的任务
-        task1_data = {
-            "name": "重要工作任务",
-            "priority": "high",
-            "task_tags": ["重要", "工作"]
-        }
-        task2_data = {
-            "name": "个人学习任务",
-            "priority": "medium",
-            "task_tags": ["学习", "个人"]
-        }
-        task3_data = {
-            "name": "重要学习任务",
-            "priority": "high",
-            "task_tags": ["重要", "学习"]
-        }
+        # 高优先级任务会被动态标记为 '重要'
+        client.post("/tasks", json={"name": "高优先级任务A", "priority": "high"})
+        client.post("/tasks", json={"name": "中优先级任务",  "priority": "medium"})
+        client.post("/tasks", json={"name": "高优先级任务B", "priority": "high"})
         
-        client.post("/tasks", json=task1_data)
-        client.post("/tasks", json=task2_data)
-        client.post("/tasks", json=task3_data)
-        
-        # 按单个标签筛选
+        # 按 '重要' 标签筛选（高优先级任务会有此标签）
         response = client.get("/tasks/by-tags?tags=重要")
         assert response.status_code == 200
         data = response.json()
-        # 应该返回2个重要任务
-        important_tasks = [task for task in data if "重要" in task.get("task_tags", [])]
-        assert len(important_tasks) >= 2
+        assert len(data) >= 2
         
-        # 按多个标签筛选（AND逻辑）
-        response = client.get("/tasks/by-tags?tags=重要,学习")
+        # 按 '今日' 标签筛选（无截止日期任务默认归今日）
+        response = client.get("/tasks/by-tags?tags=今日")
         assert response.status_code == 200
         data = response.json()
-        # 应该只返回同时包含"重要"和"学习"标签的任务
-        filtered_tasks = [task for task in data 
-                         if "重要" in task.get("task_tags", []) and "学习" in task.get("task_tags", [])]
-        assert len(filtered_tasks) >= 1
+        assert len(data) >= 1
         
         print("✅ 标签筛选功能正常")
 

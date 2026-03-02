@@ -10,11 +10,13 @@ from openai import OpenAI
 from models import Task, AIJob, AIJobStatus, DaySchedule, TaskScheduleItem
 from database import db
 from tag_service import TagService
+from config import current_settings
 
-# 配置 OpenAI 客户端
+# 配置 OpenAI 客户端（从配置文件读取，不硬编码敏感信息）
 client = OpenAI(
-    api_key="sk-zmyrpclntmuvmufqjclmjczurrexkvzsfcrxthcwzgyffktd",
-    base_url="https://api.siliconflow.cn/v1",
+    api_key=current_settings.OPENAI_API_KEY,
+    base_url=current_settings.OPENAI_BASE_URL,
+    timeout=current_settings.AI_RESPONSE_TIMEOUT,
 )
 
 class AIService:
@@ -33,7 +35,7 @@ class AIService:
             current_guidance = AIService._get_type_specific_guidance(task_type)
             
             response = client.chat.completions.create(
-                model="Qwen/Qwen2.5-7B-Instruct",
+                model=current_settings.OPENAI_MODEL,
                 messages=[
                     {
                         "role": "system",
@@ -126,7 +128,7 @@ class AIService:
             # 更新AI作业状态
             job = db.get_ai_job(job_id)
             job.status = AIJobStatus.COMPLETED
-            job.result = [task.dict() for task in created_tasks]
+            job.result = [task.model_dump() for task in created_tasks]
             db.update_ai_job(job_id, job)
             
             print(f"✅ AI任务规划完成")
@@ -195,24 +197,35 @@ class AIService:
     @staticmethod
     def _parse_ai_response(content: str, max_tasks: int) -> dict:
         """解析AI响应内容"""
-        # 尝试提取 JSON 部分
+        # 1. 优先尝试剥离 markdown 代码围栏后解析
+        import re
+        code_fence_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", content)
+        if code_fence_match:
+            try:
+                return json.loads(code_fence_match.group(1))
+            except json.JSONDecodeError:
+                pass  # fall through to next strategy
+
+        # 2. 直接定位首个 { ... 最后一个 } 并解析
         start_idx = content.find('{')
         end_idx = content.rfind('}') + 1
         if start_idx != -1 and end_idx > start_idx:
-            json_content = content[start_idx:end_idx]
-            ai_result = json.loads(json_content)
-        else:
-            # 如果没有找到完整JSON，尝试解析为数组格式（兼容旧格式）
-            start_idx = content.find('[')
-            end_idx = content.rfind(']') + 1
-            if start_idx != -1 and end_idx > start_idx:
-                json_content = content[start_idx:end_idx]
-                ai_tasks = json.loads(json_content)
-                ai_result = {"project_theme": f"AI规划项目", "tasks": ai_tasks}
-            else:
-                raise Exception("无法解析AI返回的JSON格式")
-        
-        return ai_result
+            try:
+                return json.loads(content[start_idx:end_idx])
+            except json.JSONDecodeError:
+                pass
+
+        # 3. 兼容旧格式：纯数组
+        start_idx = content.find('[')
+        end_idx = content.rfind(']') + 1
+        if start_idx != -1 and end_idx > start_idx:
+            try:
+                ai_tasks = json.loads(content[start_idx:end_idx])
+                return {"project_theme": "AI规划项目", "tasks": ai_tasks}
+            except json.JSONDecodeError:
+                pass
+
+        raise Exception("无法解析AI返回的JSON格式")
 
     @staticmethod
     def _create_tasks_from_ai_result(ai_tasks: List[dict], project_theme: str, max_tasks: int, base_time: datetime) -> List[Task]:
@@ -339,7 +352,7 @@ class AIService:
                 job.result = {
                     "date": date_str,
                     "has_schedule": True,
-                    "schedule": empty_schedule.dict(),
+                    "schedule": empty_schedule.model_dump(),
                     "tasks_changed": False
                 }
                 db.update_ai_job(job_id, job)
@@ -357,7 +370,7 @@ class AIService:
                     job.result = {
                         "date": date_str,
                         "has_schedule": True,
-                        "schedule": existing_schedule.dict(),
+                        "schedule": existing_schedule.model_dump(),
                         "tasks_changed": False
                     }
                     db.update_ai_job(job_id, job)
@@ -387,7 +400,7 @@ class AIService:
             job.result = {
                 "date": date_str,
                 "has_schedule": True,
-                "schedule": day_schedule.dict(),
+                "schedule": day_schedule.model_dump(),
                 "tasks_changed": False
             }
             db.update_ai_job(job_id, job)
@@ -436,7 +449,7 @@ class AIService:
         target_weekday = weekday_names[target_date.weekday()]
         
         response = client.chat.completions.create(
-            model="Qwen/Qwen2.5-7B-Instruct",
+            model=current_settings.OPENAI_MODEL,
             messages=[
                 {
                     "role": "system",
