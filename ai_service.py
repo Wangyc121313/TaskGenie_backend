@@ -103,7 +103,7 @@ class AIService:
                     },
                     {"role": "user", "content": f"请为以下目标生成项目主题和分解任务：{prompt}"},
                 ],
-                temperature=0.6,
+                temperature=0.8,
                 max_tokens=1500,
             )
 
